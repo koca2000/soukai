@@ -4,11 +4,11 @@ import { ResourceNotFound } from 'soukai-solid/errors';
 
 import { type SolidModel } from 'soukai-solid/models/SolidModel';
 
-type SolidMultiDocumentModelListener<T extends SolidModel> = 
-    (multiDocument: SolidMultiDocumentModel<T>, part: T | undefined) => unknown;
+type SolidMultiDocumentAggregateListener<T extends SolidModel> = 
+    (multiDocument: SolidMultiDocumentAggregate<T>, part: T | undefined) => unknown;
 
-type SolidMultiDocumentConstructor<T extends SolidMultiDocumentModel<F>, F extends SolidModel> = 
-    Constructor<T> & typeof SolidMultiDocumentModel<F>;
+type SolidMultiDocumentConstructor<T extends SolidMultiDocumentAggregate<F>, F extends SolidModel> = 
+    Constructor<T> & typeof SolidMultiDocumentAggregate<F>;
 
 const SolidMultiDocumentModelEventTypes = {
     'part-created': ['created'],
@@ -21,14 +21,14 @@ const SolidMultiDocumentModelEventTypes = {
 } as const;
 type SolidMultiDocumentModelEventTypes = keyof typeof SolidMultiDocumentModelEventTypes;
 
-export class SolidMultiDocumentModel<T extends SolidModel> {
+export class SolidMultiDocumentAggregate<T extends SolidModel> {
 
     public static baseModel: typeof SolidModel;
     public static linkedByAttributes: string[];
     private _parts: T[] = [];
     private _proxy;
     private _id: string;
-    private _eventHandlers: Record<string, SolidMultiDocumentModelListener<T>[]> = {};
+    private _eventHandlers: Record<string, SolidMultiDocumentAggregateListener<T>[]> = {};
 
     constructor(id: string) {
         this._id = id;
@@ -64,7 +64,7 @@ export class SolidMultiDocumentModel<T extends SolidModel> {
      * @param firstDocumentUrl The first document to search in. If not specified, the key is used as a URL instead.
      * @returns New instance of multi document model
      */
-    public static async find<F extends SolidModel, T extends SolidMultiDocumentModel<F>>(
+    public static async find<F extends SolidModel, T extends SolidMultiDocumentAggregate<F>>(
         this: SolidMultiDocumentConstructor<T, F>,
         key: string,
         firstDocumentUrl?: string,
@@ -126,15 +126,6 @@ export class SolidMultiDocumentModel<T extends SolidModel> {
     }
 
     /**
-     * Saves all parts that are dirty.
-     */
-    public async save(): Promise<void> {
-        for (const part of this._parts) {
-            await part.save();
-        }
-    }
-
-    /**
      * Identifier of the entity.
      */
     public get id(): string {
@@ -153,17 +144,13 @@ export class SolidMultiDocumentModel<T extends SolidModel> {
 
     /**
      * Adds an entity to the multi document entity as its part.
-     * The part has to have a source document url and no or correct primary key.
-     * If the part does not have a primary key, it is set automatically.
+     * The part has to have a source document url and correct primary key.
      * @param part A part to be added
+     * @throws {SoukaiError} if part does not have a source document url or correct primary key.
      */
     public async addPart(part: T): Promise<void> {
         if (part.getSourceDocumentUrl() === null) {
             throw new SoukaiError('All parts of multi document model must have their source document url set.');
-        }
-
-        if (part.getSerializedPrimaryKey() === null) {
-            part.setAttribute(this.static().baseModel.primaryKey, this._id);
         }
 
         if (part.getSerializedPrimaryKey() !== this._id) {
@@ -196,7 +183,7 @@ export class SolidMultiDocumentModel<T extends SolidModel> {
      */
     public on(
         event: SolidMultiDocumentModelEventTypes, 
-        listener: SolidMultiDocumentModelListener<T>,
+        listener: SolidMultiDocumentAggregateListener<T>,
     ): () => void {
         const eventListeners = (this._eventHandlers[event] ??= []);
         
@@ -232,7 +219,7 @@ export class SolidMultiDocumentModel<T extends SolidModel> {
         await Promise.all(eventListeners.map(listener => listener(this, part)));
     }
 
-    protected static<BM extends SolidModel, M extends typeof SolidMultiDocumentModel<BM>>(): M {
+    protected static<BM extends SolidModel, M extends typeof SolidMultiDocumentAggregate<BM>>(): M {
         return this.constructor as M;
     }
 

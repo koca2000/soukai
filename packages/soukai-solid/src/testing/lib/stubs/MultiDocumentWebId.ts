@@ -1,6 +1,6 @@
-import { multiDocumentModelOf } from 'soukai-solid/models';
+import { multiDocumentAggregateOf } from 'soukai-solid/models';
 import WebId from './WebId';
 
-const Model = multiDocumentModelOf(WebId, ['seeAlso', 'isPrimaryTopicOf']);
+const Model = multiDocumentAggregateOf(WebId, ['seeAlso', 'isPrimaryTopicOf']);
 
 export class MultiDocumentWebId extends Model {}

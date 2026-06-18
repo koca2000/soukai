@@ -8,11 +8,12 @@ import Person from 'soukai-solid/testing/lib/stubs/Person';
 import WebId from 'soukai-solid/testing/lib/stubs/WebId';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-describe('SolidMultiDocumentModel', () => {
+describe('SolidMultiDocumentAggregate', () => {
 
     beforeAll(() => {
         bootModels({
-            
+            Person,
+            WebId,
         });
     });
 
@@ -39,12 +40,12 @@ describe('SolidMultiDocumentModel', () => {
         };
 
         // Act
-        const model = await MultiDocumentWebId.find(resourceUrl);
+        const aggregate = await MultiDocumentWebId.find(resourceUrl);
 
         // Assert
-        expect(model).not.toBeNull();
-        expect(model?.getParts().length).toEqual(1);
-        expect(model?.getParts()[0]?.name).toEqual(name);
+        expect(aggregate).not.toBeNull();
+        expect(aggregate?.getParts().length).toEqual(1);
+        expect(aggregate?.getParts()[0]?.name).toEqual(name);
     });
 
     it('finds model in linked documents', async () => {
@@ -62,13 +63,13 @@ describe('SolidMultiDocumentModel', () => {
         };
 
         // Act
-        const model = await MultiDocumentWebId.find(resourceUrl);
+        const aggregate = await MultiDocumentWebId.find(resourceUrl);
 
         // Assert
-        expect(model).not.toBeNull();
-        expect(model?.getParts().length).toEqual(2);
-        expect(model?.getParts()[0]?.name).toEqual(name + '1');
-        expect(model?.getParts()[1]?.name).toEqual(name + '2');
+        expect(aggregate).not.toBeNull();
+        expect(aggregate?.getParts().length).toEqual(2);
+        expect(aggregate?.getParts()[0]?.name).toEqual(name + '1');
+        expect(aggregate?.getParts()[1]?.name).toEqual(name + '2');
     });
 
     it('finds model in linked documents recursively', async () => {
@@ -95,14 +96,14 @@ describe('SolidMultiDocumentModel', () => {
         };
 
         // Act
-        const model = await MultiDocumentWebId.find(resourceUrl);
+        const aggregate = await MultiDocumentWebId.find(resourceUrl);
 
         // Assert
-        expect(model).not.toBeNull();
-        expect(model?.getParts().length).toEqual(3);
-        expect(model?.getParts()[0]?.name).toEqual(name + '1');
-        expect(model?.getParts()[1]?.name).toEqual(name + '2');
-        expect(model?.getParts()[2]?.name).toEqual(name + '3');
+        expect(aggregate).not.toBeNull();
+        expect(aggregate?.getParts().length).toEqual(3);
+        expect(aggregate?.getParts()[0]?.name).toEqual(name + '1');
+        expect(aggregate?.getParts()[1]?.name).toEqual(name + '2');
+        expect(aggregate?.getParts()[2]?.name).toEqual(name + '3');
     });
 
     it('finds model in linked documents with start in document not matching id', async () => {
@@ -121,13 +122,13 @@ describe('SolidMultiDocumentModel', () => {
         };
 
         // Act
-        const model = await MultiDocumentWebId.find(resourceUrl, firstDocumentUrl);
+        const aggregate = await MultiDocumentWebId.find(resourceUrl, firstDocumentUrl);
 
         // Assert
-        expect(model).not.toBeNull();
-        expect(model?.getParts().length).toEqual(2);
-        expect(model?.getParts()[0]?.name).toEqual(name + '1');
-        expect(model?.getParts()[1]?.name).toEqual(name + '2');
+        expect(aggregate).not.toBeNull();
+        expect(aggregate?.getParts().length).toEqual(2);
+        expect(aggregate?.getParts()[0]?.name).toEqual(name + '1');
+        expect(aggregate?.getParts()[1]?.name).toEqual(name + '2');
     });
 
     it('finds empty documents as new model', async () => {
@@ -140,12 +141,12 @@ describe('SolidMultiDocumentModel', () => {
         };
 
         // Act
-        const model = await MultiDocumentWebId.find(resourceUrl);
+        const aggregate = await MultiDocumentWebId.find(resourceUrl);
 
         // Assert
-        expect(model).not.toBeNull();
-        expect(model?.getParts().length).toEqual(1);
-        expect(model?.getParts()[0]?.name).toBeUndefined();
+        expect(aggregate).not.toBeNull();
+        expect(aggregate?.getParts().length).toEqual(1);
+        expect(aggregate?.getParts()[0]?.name).toBeUndefined();
     });
 
     it('loads additional parts with start in specified document', async () => {
@@ -158,10 +159,10 @@ describe('SolidMultiDocumentModel', () => {
 
         const name = faker.name.firstName();
 
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
         const firstPart = new WebId({ url: resourceUrl, name: name + '0' });
         firstPart.setSourceDocumentUrl(resourceDocumentUrl);
-        model.addPart(firstPart);
+        aggregate.addPart(firstPart);
 
         FakeSolidEngine.database[containerUrl] = {
             [additionalDocumentUrl]: stubWebIdJsonLD(
@@ -174,13 +175,13 @@ describe('SolidMultiDocumentModel', () => {
         };
 
         // Act
-        await model.loadFromLinkedDocuments(additionalDocumentUrl);
+        await aggregate.loadFromLinkedDocuments(additionalDocumentUrl);
 
         // Assert
-        expect(model?.getParts().length).toEqual(3);
-        expect(model?.getParts()[0]?.name).toEqual(name + '0');
-        expect(model?.getParts()[1]?.name).toEqual(name + '1');
-        expect(model?.getParts()[2]?.name).toEqual(name + '2');
+        expect(aggregate?.getParts().length).toEqual(3);
+        expect(aggregate?.getParts()[0]?.name).toEqual(name + '0');
+        expect(aggregate?.getParts()[1]?.name).toEqual(name + '1');
+        expect(aggregate?.getParts()[2]?.name).toEqual(name + '2');
     });
 
     it('merges properties of all parts', async () => {
@@ -192,7 +193,7 @@ describe('SolidMultiDocumentModel', () => {
         const resourceUrl = fakeResourceUrl({ documentUrl: firstDocumentUrl });
 
         const name = faker.name.firstName();
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
         const knownPersons = [
             new Person({ name: name + 'p1' }),
@@ -213,17 +214,17 @@ describe('SolidMultiDocumentModel', () => {
         part3.setSourceDocumentUrl(thirdDocumentUrl);
 
         // Act
-        model.addPart(part1);
-        model.addPart(part2);
-        model.addPart(part3);
+        aggregate.addPart(part1);
+        aggregate.addPart(part2);
+        aggregate.addPart(part3);
 
         // Assert
-        expect(model.getParts().length).toEqual(3);
-        expect(model.name).toEqual([name + '1', name + '2']);
-        expect(model.knows).toEqual([]);
-        expect(model.seeAlso).toEqual([secondDocumentUrl, thirdDocumentUrl]);
-        expect(model.isPrimaryTopicOf).toEqual([]);
-        expect(model.knownPersons).toEqual(knownPersons);
+        expect(aggregate.getParts().length).toEqual(3);
+        expect(aggregate.name).toEqual([name + '1', name + '2']);
+        expect(aggregate.knows).toEqual([]);
+        expect(aggregate.seeAlso).toEqual([secondDocumentUrl, thirdDocumentUrl]);
+        expect(aggregate.isPrimaryTopicOf).toEqual([]);
+        expect(aggregate.knownPersons).toEqual(knownPersons);
     });
 
     it('doesn\'t allow parts without source document url', async () => {
@@ -232,11 +233,11 @@ describe('SolidMultiDocumentModel', () => {
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
 
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
         const part = new WebId({ url: resourceUrl, name: faker.name.firstName() });
 
         // Act + Assert
-        await expect(() => model.addPart(part)).rejects.toThrow('source document url set');
+        await expect(() => aggregate.addPart(part)).rejects.toThrow('source document url set');
     });
 
     it('doesn\'t allow parts with different id', async () => {
@@ -246,12 +247,12 @@ describe('SolidMultiDocumentModel', () => {
         const resourceUrl = fakeResourceUrl({ documentUrl, hash: 'res' });
         const otherResourceUrl = fakeResourceUrl({ documentUrl, hash: 'other' });
 
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
         const part = new WebId({ url: otherResourceUrl, name: faker.name.firstName() });
         part.setSourceDocumentUrl(documentUrl);
 
         // Act + Assert
-        await expect(() => model.addPart(part)).rejects.toThrow('same primary key');
+        await expect(() => aggregate.addPart(part)).rejects.toThrow('same primary key');
     });
 
     it('automaticaly sets id for added parts', async () => {
@@ -260,15 +261,15 @@ describe('SolidMultiDocumentModel', () => {
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
 
-        const model = new MultiDocumentWebId(resourceUrl);
-        const part = new WebId();
+        const aggregate = new MultiDocumentWebId(resourceUrl);
+        const part = new WebId({ url: resourceUrl });
         part.setSourceDocumentUrl(documentUrl);
 
         // Act
-        model.addPart(part);
+        aggregate.addPart(part);
 
         // Assert
-        expect(model.getParts().length).toEqual(1);
+        expect(aggregate.getParts().length).toEqual(1);
         expect(part.getSerializedPrimaryKey()).toEqual(resourceUrl);
     });
 
@@ -281,14 +282,14 @@ describe('SolidMultiDocumentModel', () => {
         const containerUrl = fakeContainerUrl();
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
-        const part = new WebId();
+        const part = new WebId({ url: resourceUrl });
         part.setSourceDocumentUrl(documentUrl);
 
-        await model.addPart(part);
+        await aggregate.addPart(part);
 
-        model.on('part-modified', (m, p) => { 
+        aggregate.on('part-modified', (m, p) => { 
             count++;
             modifiedDoc = m;
             modifiedPart = p;
@@ -299,7 +300,7 @@ describe('SolidMultiDocumentModel', () => {
 
         // Assert
         expect(count).toEqual(1);
-        expect(modifiedDoc).toEqual(model);
+        expect(modifiedDoc).toEqual(aggregate);
         expect(modifiedPart).toEqual(part);
     });
 
@@ -312,14 +313,14 @@ describe('SolidMultiDocumentModel', () => {
         const containerUrl = fakeContainerUrl();
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
-        const part = new WebId();
+        const part = new WebId({ url: resourceUrl });
         part.setSourceDocumentUrl(documentUrl);
 
-        await model.addPart(part);
+        await aggregate.addPart(part);
 
-        model.on('part-created', (m, p) => { 
+        aggregate.on('part-created', (m, p) => { 
             count++;
             updatedDoc = m;
             updatedPart = p;
@@ -331,7 +332,7 @@ describe('SolidMultiDocumentModel', () => {
 
         // Assert
         expect(count).toEqual(1);
-        expect(updatedDoc).toEqual(model);
+        expect(updatedDoc).toEqual(aggregate);
         expect(updatedPart).toEqual(part);
     });
 
@@ -344,9 +345,9 @@ describe('SolidMultiDocumentModel', () => {
         const containerUrl = fakeContainerUrl();
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
-        const part = new WebId({}, true);
+        const part = new WebId({ url: resourceUrl }, true);
         part.setSourceDocumentUrl(documentUrl);
 
         FakeSolidEngine.database[containerUrl] = {
@@ -357,9 +358,9 @@ describe('SolidMultiDocumentModel', () => {
             },
         };
 
-        await model.addPart(part);
+        await aggregate.addPart(part);
 
-        model.on('part-updated', (m, p) => { 
+        aggregate.on('part-updated', (m, p) => { 
             count++;
             updatedDoc = m;
             updatedPart = p;
@@ -371,7 +372,7 @@ describe('SolidMultiDocumentModel', () => {
 
         // Assert
         expect(count).toEqual(1);
-        expect(updatedDoc).toEqual(model);
+        expect(updatedDoc).toEqual(aggregate);
         expect(updatedPart).toEqual(part);
     });
 
@@ -385,18 +386,18 @@ describe('SolidMultiDocumentModel', () => {
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
         const personResourceUrl = fakeResourceUrl({ documentUrl, hash: 'person' });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
-        const part = new WebId({}, true);
+        const part = new WebId({ url: resourceUrl }, true);
         part.setSourceDocumentUrl(documentUrl);
 
         FakeSolidEngine.database[containerUrl] = {
             [documentUrl]: stubPersonJsonLD(personResourceUrl, faker.name.firstName()),
         };
 
-        await model.addPart(part);
+        await aggregate.addPart(part);
 
-        model.on('part-relation-loaded', (m, p) => { 
+        aggregate.on('part-relation-loaded', (m, p) => { 
             count++;
             updatedDoc = m;
             updatedPart = p;
@@ -407,7 +408,7 @@ describe('SolidMultiDocumentModel', () => {
 
         // Assert
         expect(count).toEqual(1);
-        expect(updatedDoc).toEqual(model);
+        expect(updatedDoc).toEqual(aggregate);
         expect(updatedPart).toEqual(part);
     });
 
@@ -418,11 +419,11 @@ describe('SolidMultiDocumentModel', () => {
         const containerUrl = fakeContainerUrl();
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
         const part = new WebId({ url: resourceUrl }, true);
         part.setSourceDocumentUrl(documentUrl);
-        await model.addPart(part);
+        await aggregate.addPart(part);
 
         FakeSolidEngine.database[containerUrl] = {
             [documentUrl]: {
@@ -432,7 +433,7 @@ describe('SolidMultiDocumentModel', () => {
             },
         };
 
-        model.on('part-deleted', () => count++);
+        aggregate.on('part-deleted', () => count++);
 
         // Act
         await part.delete();
@@ -448,15 +449,15 @@ describe('SolidMultiDocumentModel', () => {
         const containerUrl = fakeContainerUrl();
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
-        const part = new WebId();
+        const part = new WebId({ url: resourceUrl });
         part.setSourceDocumentUrl(documentUrl);
 
-        model.on('part-added', () => count++);
+        aggregate.on('part-added', () => count++);
 
         // Act
-        await model.addPart(part);
+        await aggregate.addPart(part);
 
         // Assert
         expect(count).toEqual(1);
@@ -469,16 +470,16 @@ describe('SolidMultiDocumentModel', () => {
         const containerUrl = fakeContainerUrl();
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
-        const part = new WebId();
+        const part = new WebId({ url: resourceUrl });
         part.setSourceDocumentUrl(documentUrl);
-        await model.addPart(part);
+        await aggregate.addPart(part);
 
-        model.on('part-removed', () => count++);
+        aggregate.on('part-removed', () => count++);
 
         // Act
-        await model.removePart(part);
+        await aggregate.removePart(part);
 
         // Assert
         expect(count).toEqual(1);
@@ -491,12 +492,12 @@ describe('SolidMultiDocumentModel', () => {
         const containerUrl = fakeContainerUrl();
         const documentUrl = fakeDocumentUrl({ containerUrl });
         const resourceUrl = fakeResourceUrl({ documentUrl });
-        const model = new MultiDocumentWebId(resourceUrl);
+        const aggregate = new MultiDocumentWebId(resourceUrl);
 
-        model.on('part-removed', () => count++);
+        aggregate.on('part-removed', () => count++);
 
         // Act
-        await model.removePart(new WebId());
+        await aggregate.removePart(new WebId());
 
         // Assert
         expect(count).toEqual(0);
