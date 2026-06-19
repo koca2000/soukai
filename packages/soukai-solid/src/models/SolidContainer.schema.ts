@@ -28,6 +28,7 @@ export const solidContainerFields = {
 
 export default defineSolidModelSchema({
     rdfsClass: 'ldp:Container',
+    rdfsClassesAliases: [['ldp:BasicContainer']],
     timestamps: false,
     fields: solidContainerFields,
 });
