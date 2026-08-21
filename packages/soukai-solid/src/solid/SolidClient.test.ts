@@ -108,6 +108,7 @@ describe('SolidClient', () => {
         expect(FakeServer.fetch).toHaveBeenNthCalledWith(1, containerUrl, {
             method: 'PUT',
             headers: {
+                'Content-Type': 'text/turtle',
                 'Link': '<http://www.w3.org/ns/ldp#BasicContainer>; rel="type"',
                 'If-None-Match': '*',
             },

@@ -254,6 +254,7 @@ export default class SolidClient {
         const response = await this.fetch(url, {
             method: 'PUT',
             headers: {
+                'Content-Type': 'text/turtle',
                 'Link': '<http://www.w3.org/ns/ldp#BasicContainer>; rel="type"',
                 'If-None-Match': '*',
             },

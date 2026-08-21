@@ -35,6 +35,31 @@ describe('SolidContainer', () => {
         expect(StubModel.rdfsClasses).toEqual([LDP_CONTAINER]);
     });
 
+    it('finds containers with only ldp:BaseContainer type', async () => {
+        // Arrange
+        const parentContainerUrl = fakeContainerUrl();
+        const containerUrl = fakeContainerUrl({ baseUrl: parentContainerUrl });
+
+        FakeSolidEngine.database[parentContainerUrl] = {
+            [containerUrl]: {
+                '@graph': [
+                    {
+                        '@id': containerUrl,
+                        '@type': [
+                            'http://www.w3.org/ns/ldp#BasicContainer',
+                        ],
+                    },
+                ],
+            },
+        };
+
+        // Act
+        const container = await SolidContainer.find(containerUrl);
+        
+        // Assert
+        expect(container).not.toBeNull();
+    });
+
     it('adds resourceUrls field', () => {
         // Arrange
         class StubModel extends SolidContainer {
