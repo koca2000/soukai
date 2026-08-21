@@ -138,7 +138,7 @@ export class SolidModel extends SolidModelBase {
     public static classFields = ['_history', '_publicPermissions', '_tombstone'];
     public static rdfContext?: string;
     public static rdfContexts: RDFContexts = {};
-    public static rdfsClass?: string;
+    public static rdfsClass?: string | null;
     public static rdfsClasses: string[] = [];
     public static rdfsClassesAliases: string[][] = [];
     public static reservedRelations: string[] = ['metadata', 'operations', 'tombstone', 'authorizations'];
@@ -248,7 +248,7 @@ export class SolidModel extends SolidModelBase {
             this.rdfsClass,
         );
         this.rdfsClasses = this.bootRdfsClasses(
-            Object.getOwnPropertyDescriptor(this, 'rdfsClass')?.value ?? null,
+            Object.getOwnPropertyDescriptor(this, 'rdfsClass')?.value,
             Object.getOwnPropertyDescriptor(this, 'rdfsClasses')?.value ?? null,
             this.rdfContexts,
         );
@@ -335,32 +335,58 @@ export class SolidModel extends SolidModelBase {
     }
     /* eslint-enable max-len */
 
-    public static async find<T extends Model>(this: ModelConstructor<T>, id: Key): Promise<T | null>;
-    public static async find<T extends SolidModel>(this: SolidModelConstructor<T>, id: Key): Promise<T | null>;
-    public static async find<T extends SolidModel>(this: SolidModelConstructor<T>, id: Key): Promise<T | null> {
+    public static async findOrFail<T extends Model>(this: ModelConstructor<T>, id: Key): Promise<T>;
+    public static async findOrFail<T extends SolidModel>(this: SolidModelConstructor<T>, id: Key): Promise<T>;
+    public static async findOrFail<T extends SolidModel>(
+        this: SolidModelConstructor<T>,
+        id: Key,
+        documentUrl?: string
+    ): Promise<T>;
+
+    public static async findOrFail<T extends SolidModel>(
+        this: SolidModelConstructor<T>,
+        id: Key,
+        documentUrl?: string,
+    ): Promise<T> {
         const rdfsClasses = arrayUnique([this.rdfsClasses, ...this.rdfsClassesAliases].flat());
         const resourceUrl = this.instance().serializeKey(id);
-        const documentUrl = urlRoute(resourceUrl);
+        documentUrl ??= urlRoute(resourceUrl);
         const containerUrl = urlParentDirectory(documentUrl) ?? urlRoot(documentUrl);
 
         this.ensureBooted();
 
+        const { documentPermissions, stopTracking } = this.instance().trackPublicPermissions();
+        const document = await this.requireEngine().readOne(containerUrl, documentUrl);
+        const resource = await RDFDocument.resourceFromJsonLDGraph(document as JsonLDGraph, resourceUrl);
+
+        if (rdfsClasses.length > 0 && !rdfsClasses.some((type) => resource.isType(type))) {
+            return fail(ResourceNotFound, resourceUrl, documentUrl);
+        }
+
+        const model = await this.instance().createFromEngineDocument(documentUrl, document, resourceUrl);
+
+        stopTracking();
+
+        model._publicPermissions = documentPermissions[documentUrl];
+
+        return model;
+    }
+
+    public static async find<T extends Model>(this: ModelConstructor<T>, id: Key): Promise<T | null>;
+    public static async find<T extends SolidModel>(this: SolidModelConstructor<T>, id: Key): Promise<T | null>;
+    public static async find<T extends SolidModel>(
+        this: SolidModelConstructor<T>,
+        id: Key,
+        documentUrl?: string
+    ): Promise<T | null>;
+    
+    public static async find<T extends SolidModel>(
+        this: SolidModelConstructor<T>,
+        id: Key,
+        documentUrl?: string,
+    ): Promise<T | null> {
         try {
-            const { documentPermissions, stopTracking } = this.instance().trackPublicPermissions();
-            const document = await this.requireEngine().readOne(containerUrl, documentUrl);
-            const resource = await RDFDocument.resourceFromJsonLDGraph(document as JsonLDGraph, resourceUrl);
-
-            if (!rdfsClasses.some((type) => resource.isType(type))) {
-                return null;
-            }
-
-            const model = await this.instance().createFromEngineDocument(documentUrl, document, resourceUrl);
-
-            stopTracking();
-
-            model._publicPermissions = documentPermissions[documentUrl];
-
-            return model;
+            return await this.findOrFail(id, documentUrl);
         } catch (error) {
             if (
                 applyStrictChecks() &&
@@ -522,14 +548,16 @@ export class SolidModel extends SolidModelBase {
         );
 
         return Object.entries(resourcesTypes)
-            .filter(([_, types]) => types.some((type) => this.rdfsClasses.includes(type)))
+            .filter(([_, types]) => 
+                this.rdfsClasses.length === 0 
+                || types.some((type) => this.rdfsClasses.includes(type)))
             .map(([resourceId]) => (baseUrl ? urlResolve(baseUrl, resourceId) : resourceId));
     }
 
     protected static bootRdfContexts(
         rdfContext: string | null,
         rdfContexts: RDFContexts,
-        rdfsClass: string | undefined,
+        rdfsClass: string | null | undefined,
         options: { modelClass?: typeof SolidModel; skipParentSchema?: boolean } = {},
     ): RDFContexts {
         const modelClass = options.modelClass ?? this;
@@ -579,7 +607,7 @@ export class SolidModel extends SolidModelBase {
     }
 
     protected static bootRdfsClasses(
-        rdfsClass: string | null,
+        rdfsClass: string | null | undefined,
         rdfsClasses: string[] | null,
         rdfContexts: RDFContexts,
         initialClass?: typeof SolidModel,
@@ -594,6 +622,10 @@ export class SolidModel extends SolidModelBase {
             return [this.rdfTerm(rdfsClass, rdfContexts)];
         }
 
+        if (rdfsClass === null) {
+            return [];
+        }
+
         const parentModelClass = Object.getPrototypeOf(modelClass);
 
         if (!parentModelClass) {
@@ -601,7 +633,7 @@ export class SolidModel extends SolidModelBase {
         }
 
         return this.bootRdfsClasses(
-            Object.getOwnPropertyDescriptor(parentModelClass, 'rdfsClass')?.value ?? null,
+            Object.getOwnPropertyDescriptor(parentModelClass, 'rdfsClass')?.value,
             Object.getOwnPropertyDescriptor(parentModelClass, 'rdfsClasses')?.value ?? null,
             {
                 ...rdfContexts,
@@ -685,7 +717,7 @@ export class SolidModel extends SolidModelBase {
                 schema.rdfsClass,
                 { skipParentSchema: true },
             );
-            const rdfsClasses = this.bootRdfsClasses(schema.rdfsClass ?? null, schema.rdfsClasses ?? null, rdfContexts);
+            const rdfsClasses = this.bootRdfsClasses(schema.rdfsClass, schema.rdfsClasses ?? null, rdfContexts);
             const rdfsClassesAliases = this.bootRdfsClassesAliases(schema.rdfsClassesAliases ?? [], rdfContexts);
 
             startSchemaUpdate(this, rdfContexts);
@@ -706,7 +738,9 @@ export class SolidModel extends SolidModelBase {
         }
     }
 
-    // TODO this should be optional
+    // Not used directly, because the primary key may be different. 
+    // It is left here for backward compatibility reasons,
+    // because users can extend this class directly without calling defineSolidModelSchema method.
     declare public url: string;
 
     declare public deletedAt?: Date;
@@ -856,6 +890,7 @@ export class SolidModel extends SolidModelBase {
 
         if (documentUrl) {
             this._documentExists = documentExists ?? true;
+            this.setSourceDocumentUrl(documentUrl);
         }
     }
 
@@ -869,7 +904,8 @@ export class SolidModel extends SolidModelBase {
         const model = this.clone();
 
         if (!options.ids) {
-            model.getRelatedModels().forEach((relatedModel) => relatedModel.setAttribute('url', null));
+            model.getRelatedModels().forEach((relatedModel) => 
+                relatedModel.setAttribute(relatedModel.static('primaryKey'), null));
         }
 
         if (!options.timestamps) {
@@ -900,7 +936,9 @@ export class SolidModel extends SolidModelBase {
     }
 
     public getIdAttribute(): string {
-        return this.getAttribute('url');
+        // id is defined as string, but in reality it can be undefined.
+        // For backward compatibility reasons, this method can return undefined.
+        return this.getSerializedPrimaryKey() ?? undefined as unknown as string;
     }
 
     public setExists(exists: boolean): void {
@@ -1006,7 +1044,13 @@ export class SolidModel extends SolidModelBase {
     }
 
     public getDocumentUrl(): string | null {
-        return this.url ? urlRoute(this.url) : null;
+        const sourceDocumentUrl = this.getSourceDocumentUrl();
+        if (sourceDocumentUrl) {
+            return sourceDocumentUrl;
+        }
+
+        const id = this.getSerializedPrimaryKey();
+        return id ? urlRoute(id) : null;
     }
 
     public requireDocumentUrl(): string {
@@ -1233,7 +1277,8 @@ export class SolidModel extends SolidModelBase {
                     rdfDocument.resources
                         .filter(
                             (resource): resource is RDFResource & { url: string } =>
-                                !!resource.url && rdfsClasses.some((type) => resource.isType(type)),
+                                !!resource.url 
+                                && (rdfsClasses.length === 0 || rdfsClasses.some((type) => resource.isType(type))),
                         )
                         .map(async (resource) => {
                             try {
@@ -1281,7 +1326,7 @@ export class SolidModel extends SolidModelBase {
 
         await super.beforeSave();
 
-        if (!this.url && this.static('mintsUrls') && !usingExperimentalActivityPods()) {
+        if (!this.getPrimaryKey() && this.static('mintsUrls') && !usingExperimentalActivityPods()) {
             this.mintUrl();
         }
 
@@ -1335,7 +1380,7 @@ export class SolidModel extends SolidModelBase {
             this.static('defaultResourceHash') &&
             !usingExperimentalActivityPods()
         ) {
-            this.metadata.resourceUrl = this.url ?? `#${this.static('defaultResourceHash')}`;
+            this.metadata.resourceUrl = this.getSerializedPrimaryKey() ?? `#${this.static('defaultResourceHash')}`;
             this.metadata.mintUrl(this.getDocumentUrl() || undefined, this._documentExists);
         }
     }
@@ -1371,7 +1416,15 @@ export class SolidModel extends SolidModelBase {
         } catch (error) {
             if (!(error instanceof DocumentAlreadyExists)) throw error;
 
-            this.url = this.newUniqueUrl(this.url);
+            if (this.getSourceDocumentUrl()) {
+                this.setDocumentExists(true);
+            }
+            else {
+                const newUrl = this.newUniqueUrl(
+                    this.getSerializedPrimaryKey() ?? fail('The primary key was not created before save.'),
+                );
+                this.setAttribute(this.static('primaryKey'), newUrl);
+            }
 
             await super.performSave();
         }
@@ -1396,8 +1449,9 @@ export class SolidModel extends SolidModelBase {
             return;
         }
 
-        if (this.metadata && this.metadata.resourceUrl !== this.url) {
-            this.metadata.resourceUrl = this.url;
+        if (this.metadata && this.metadata.resourceUrl !== this.getSerializedPrimaryKey()) {
+            this.metadata.resourceUrl = this.getSerializedPrimaryKey()
+                ?? fail('The primary key is not set after save.');
 
             if (!usingExperimentalActivityPods()) {
                 this.metadata.mintUrl(this.getDocumentUrl() || undefined, this._documentExists);
@@ -1632,14 +1686,14 @@ export class SolidModel extends SolidModelBase {
                 removedModel.getDocumentModels().forEach((model) =>
                     graphUpdates.push({
                         $updateItems: {
-                            $where: { '@id': model.url },
+                            $where: { '@id': model.getSerializedPrimaryKey() },
                             $unset: true,
                         },
                     }));
             }
         }
 
-        if (super.isDirty() && this.url) {
+        if (super.isDirty() && this.getPrimaryKey()) {
             const modelUpdates = super.getDirtyEngineDocumentUpdates();
 
             // This is necessary because a SolidEngine behaves differently than other engines.
@@ -1649,7 +1703,7 @@ export class SolidModel extends SolidModelBase {
 
             graphUpdates.push({
                 $updateItems: {
-                    $where: { '@id': this.url },
+                    $where: { '@id': this.getSerializedPrimaryKey() },
                     $update: this.convertEngineUpdatesToJsonLD(modelUpdates, compactIRIs),
                 },
             });
@@ -1742,9 +1796,12 @@ export class SolidModel extends SolidModelBase {
     }
 
     protected guessCollection(): string | undefined {
-        if (!this.url) return;
-
-        return urlParentDirectory(this.url) ?? undefined;
+        const documentUrl = this.getDocumentUrl();
+        if (!documentUrl) {
+            return undefined;
+        }
+ 
+        return urlParentDirectory(documentUrl) ?? undefined;
     }
 
     protected mintDocumentModelsKeys(models: SolidModel[]): void {
@@ -1753,7 +1810,9 @@ export class SolidModel extends SolidModelBase {
 
         // Mint primary keys
         for (const documentModel of models) {
-            if (documentModel.url) continue;
+            if (documentModel.getPrimaryKey()) {
+                continue;
+            }
 
             documentModel.mintUrl(documentUrl, documentExists, uuid());
         }

@@ -35,6 +35,8 @@ import { defineSolidModelSchema } from 'soukai-solid/models/schema';
 import { XSD_DATE_TIME } from 'soukai-solid/solid/constants';
 
 import Group from 'soukai-solid/testing/lib/stubs/Group';
+import ModelWithCustomKey from 'soukai-solid/testing/lib/stubs/ModelWithCustomKey';
+import ModelWithoutType from 'soukai-solid/testing/lib/stubs/ModelWithoutType';
 import Movie from 'soukai-solid/testing/lib/stubs/Movie';
 import MoviesCollection from 'soukai-solid/testing/lib/stubs/MoviesCollection';
 import Person from 'soukai-solid/testing/lib/stubs/Person';
@@ -59,6 +61,8 @@ describe('SolidModel', () => {
             GroupWithHistory,
             GroupWithHistoryAndPersonsInSameDocument,
             GroupWithPersonsInSameDocument,
+            ModelWithCustomKey,
+            ModelWithoutType,
             Movie,
             MovieWithHistory,
             MoviesCollection,
@@ -329,6 +333,18 @@ describe('SolidModel', () => {
         expect(document['@graph'][0]['@type']).not.toBeUndefined();
     });
 
+    it('doesn\'t send types on create if class is null', async () => {
+        // Arrange
+
+        // Act
+        await ModelWithoutType.create({});
+
+        // Assert
+        const document = FakeSolidEngine.createSpy.mock.calls[0]?.[1] as { '@graph': [{ '@type': string }] };
+
+        expect(document['@graph'][0]['@type']).toBeUndefined();
+    });
+
     it('removes duplicated array values', async () => {
         // Arrange
         const url = fakeResourceUrl();
@@ -474,6 +490,23 @@ describe('SolidModel', () => {
         expect(ids).toEqual([`${documentUrl}#it`]);
     });
 
+    it('finds all resource ids if class is null', async () => {
+        // Arrange
+        const documentUrl = fakeDocumentUrl();
+        const quads = turtleToQuadsSync(`
+            <#it> a <https://schema.org/Action> .
+            <#second> <https://example.com/test> "Entity without type" .
+            `, {
+            baseIRI: documentUrl,
+        });
+
+        // Act
+        const ids = ModelWithoutType.findMatchingResourceIds(quads);
+
+        // Assert
+        expect(ids).toEqual([`${documentUrl}#it`]);
+    });
+
     it('sends JSON-LD with related model updates using parent engine', async () => {
         // Arrange
         const containerUrl = fakeContainerUrl();
@@ -540,6 +573,70 @@ describe('SolidModel', () => {
 
         // Assert
         expect(movie).toBeNull();
+    });
+
+    it('finds model in document not matching its id', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl({ baseUrl: 'https://example.com/' });
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const resourceUrl = fakeResourceUrl({ documentUrl });
+
+        const sourceContainerUrl = fakeContainerUrl({ baseUrl: 'https://example.org/' });
+        const sourceDocumentUrl = fakeDocumentUrl({ containerUrl: sourceContainerUrl });
+
+        const person = new Person({ 
+            url: resourceUrl,
+            name: 'Alice',
+        });
+
+        FakeSolidEngine.database[sourceContainerUrl] = {
+            [sourceDocumentUrl]: {
+                '@graph': [
+                    person.toJsonLD() as EngineDocument,
+                ],
+            },
+        };
+
+        // Act
+        const loadedPerson = await Person.find(resourceUrl, sourceDocumentUrl);
+
+        // Assert
+        expect(loadedPerson).not.toBeNull();
+        expect(loadedPerson?.getSourceDocumentUrl()).toEqual(sourceDocumentUrl);
+        expect(loadedPerson?.url).toEqual(person.url);
+        expect(loadedPerson?.name).toEqual(person.name);
+    });
+
+    it('finds model with any class if class is null', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl();
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const resourceUrl = fakeResourceUrl({ documentUrl });
+        const otherResourceUrl = fakeResourceUrl({ documentUrl, hash: 'other' });
+
+        FakeSolidEngine.database[containerUrl] = {
+            [documentUrl]: { 
+                '@graph': [
+                    { 
+                        '@id': otherResourceUrl, 
+                        '@type': 'http://xmlns.com/foaf/0.1/Person',
+                        'http://xmlns.com/foaf/0.1/age': 30,
+                    },
+                    { 
+                        '@id': resourceUrl, 
+                        '@type': 'http://xmlns.com/foaf/0.1/Person',
+                        'http://xmlns.com/foaf/0.1/age': 35,
+                    },
+                ],
+            },
+        };
+
+        // Act
+        const model = await ModelWithoutType.at(containerUrl).find(resourceUrl);
+
+        // Assert
+        expect(model).not.toBeNull();
+        expect(model?.age).toEqual(35);
     });
 
     it('converts filters to JSON-LD', async () => {
@@ -1091,6 +1188,57 @@ describe('SolidModel', () => {
         });
     });
 
+    it('creates models in existing documents not matching their id', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl({ baseUrl: 'https://example.org/' });
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const movieUrl = fakeResourceUrl({ documentUrl });
+        const sourceContainerUrl = fakeContainerUrl({ baseUrl: 'https://example.com/' });
+        const sourceDocumentUrl = fakeDocumentUrl({ containerUrl: sourceContainerUrl });
+        const movie = new Movie({ url: movieUrl });
+
+        movie.setDocumentExists(true);
+        movie.setSourceDocumentUrl(sourceDocumentUrl);
+
+        FakeSolidEngine.database[sourceContainerUrl] = { [sourceDocumentUrl]: { '@graph': [] } as EngineDocument };
+
+        // Act
+        await movie.save();
+
+        // Assert
+        expect(FakeSolidEngine.update).toHaveBeenCalledWith(expect.anything(), sourceDocumentUrl, {
+            '@graph': {
+                $push: movie.toJsonLD(),
+            },
+        });
+    });
+
+    it('creates models in non-existing documents not matching their id', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl({ baseUrl: 'https://example.org/' });
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const movieUrl = fakeResourceUrl({ documentUrl });
+        const sourceContainerUrl = fakeContainerUrl({ baseUrl: 'https://example.com/' });
+        const sourceDocumentUrl = fakeDocumentUrl({ containerUrl: sourceContainerUrl });
+        const movie = new Movie({ url: movieUrl });
+
+        movie.setSourceDocumentUrl(sourceDocumentUrl);
+
+        // Act
+        await movie.save();
+
+        // Assert
+        expect(FakeSolidEngine.create).toHaveBeenCalledWith(
+            expect.anything(), 
+            {
+                '@graph': [
+                    movie.toJsonLD() as EngineDocument,
+                ],
+            },
+            sourceDocumentUrl,
+        );
+    });
+
     it('updates models', async () => {
         // Arrange
         const containerUrl = fakeContainerUrl();
@@ -1116,6 +1264,36 @@ describe('SolidModel', () => {
             },
         });
     });
+
+    it('updates models in documents not matching their id', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl({ baseUrl: 'https://example.org/' });
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const movieName = faker.lorem.sentence();
+        const movieUrl = fakeResourceUrl({ documentUrl });
+        const movie = new Movie({ url: movieUrl }, true);
+        const sourceContainerUrl = fakeContainerUrl({ baseUrl: 'https://example.com/' });
+        const sourceDocumentUrl = fakeDocumentUrl({ containerUrl: sourceContainerUrl });
+        movie.setSourceDocumentUrl(sourceDocumentUrl);
+
+        movie.title = movieName;
+
+        FakeSolidEngine.database[sourceContainerUrl] = { [sourceDocumentUrl]: { '@graph': [movie.toJsonLD()] } as EngineDocument };
+
+        // Act
+        await movie.save();
+
+        // Assert
+        expect(FakeSolidEngine.update).toHaveBeenCalledWith(expect.anything(), sourceDocumentUrl, {
+            '@graph': {
+                $updateItems: {
+                    $where: { '@id': movieUrl },
+                    $update: { [IRI('schema:name')]: movieName },
+                },
+            },
+        });
+    });
+
 
     it('uses model url container on find', async () => {
         // Arrange
@@ -1156,6 +1334,32 @@ describe('SolidModel', () => {
         expect(collection).toEqual(containerUrl);
     });
 
+    it('uses model source document url container on save', async () => {
+        // Arrange
+        class StubModel extends SolidModel {}
+
+        bootModels({ StubModel });
+
+        const sourceContainerUrl = fakeContainerUrl({ baseUrl: 'https://example.com/' });
+        const sourceDocumentUrl = fakeDocumentUrl({ containerUrl: sourceContainerUrl });
+        const containerUrl = fakeContainerUrl({ baseUrl: 'https://example.org/' });
+
+        const model = new StubModel({ url: fakeDocumentUrl({ containerUrl }) }, true);
+        model.setSourceDocumentUrl(sourceDocumentUrl);
+
+        FakeSolidEngine.database[sourceContainerUrl] = {
+            [sourceDocumentUrl]: { '@graph': [model.toJsonLD()] } as EngineDocument,
+        };
+
+        // Act
+        await model.update({ name: 'John' });
+
+        // Assert
+        const collection = FakeSolidEngine.updateSpy.mock.calls[0]?.[0];
+
+        expect(collection).toEqual(sourceContainerUrl);
+    });
+
     it('deletes the entire document if all stored resources are deleted', async () => {
         // Arrange
         const containerUrl = fakeContainerUrl();
@@ -1178,6 +1382,34 @@ describe('SolidModel', () => {
         expect(FakeSolidEngine.delete).toHaveBeenCalledWith(containerUrl, documentUrl);
     });
 
+    it('deletes the entire document not matching model\'s id if all stored resources are deleted', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl({ baseUrl: 'https://example.org/' });
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const sourceContainerUrl = fakeContainerUrl({ baseUrl: 'https://example.com/' });
+        const sourceDocumentUrl = fakeDocumentUrl({ containerUrl: sourceContainerUrl });
+        const movieUrl = `${documentUrl}#it`;
+        const actionUrl = `${documentUrl}#action`;
+        const movie = new Movie({ url: movieUrl }, true);
+        movie.setSourceDocumentUrl(sourceDocumentUrl);
+
+        const action = new WatchAction({ url: actionUrl }, true);
+        action.setSourceDocumentUrl(sourceDocumentUrl);
+
+        movie.setRelationModels('actions', [action]);
+
+        FakeSolidEngine.database[sourceContainerUrl] = {
+            [sourceDocumentUrl]: { '@graph': [{ '@id': movieUrl }, { '@id': actionUrl }] },
+        };
+
+        // Act
+        await movie.delete();
+
+        // Assert
+        expect(FakeSolidEngine.delete).toHaveBeenCalledTimes(1);
+        expect(FakeSolidEngine.delete).toHaveBeenCalledWith(sourceContainerUrl, sourceDocumentUrl);
+    });
+
     it('deletes only model properties if the document has other resources', async () => {
         // Arrange
         class StubModel extends SolidModel {}
@@ -1198,6 +1430,38 @@ describe('SolidModel', () => {
         // Assert
         expect(FakeSolidEngine.update).toHaveBeenCalledTimes(1);
         expect(FakeSolidEngine.update).toHaveBeenCalledWith(containerUrl, documentUrl, {
+            '@graph': {
+                $updateItems: {
+                    $where: { '@id': { $in: [url] } },
+                    $unset: true,
+                },
+            },
+        });
+    });
+
+    it('deletes only model properties if the document not matching model\'s id has other resources', async () => {
+        // Arrange
+        class StubModel extends SolidModel {}
+        bootModels({ StubModel });
+
+        const containerUrl = fakeContainerUrl({ baseUrl: 'https://example.org/' });
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const sourceContainerUrl = fakeContainerUrl({ baseUrl: 'https://example.com/' });
+        const sourceDocumentUrl = fakeDocumentUrl({ containerUrl: sourceContainerUrl });
+        const url = `${documentUrl}#it`;
+        const model = new StubModel({ url, name: faker.name.firstName() }, true);
+        model.setSourceDocumentUrl(sourceDocumentUrl);
+
+        FakeSolidEngine.database[sourceContainerUrl] = {
+            [sourceDocumentUrl]: { '@graph': [{ '@id': `${sourceDocumentUrl}#something-else` }] },
+        };
+
+        // Act
+        await model.delete();
+
+        // Assert
+        expect(FakeSolidEngine.update).toHaveBeenCalledTimes(1);
+        expect(FakeSolidEngine.update).toHaveBeenCalledWith(sourceContainerUrl, sourceDocumentUrl, {
             '@graph': {
                 $updateItems: {
                     $where: { '@id': { $in: [url] } },
@@ -1306,6 +1570,18 @@ describe('SolidModel', () => {
 
         expect(model.url).toBeTruthy();
         expect(model.url).toEqual(model.id);
+    });
+
+    it('aliases custom primary key attribute as id', async () => {
+        // Arrange
+        const model = new ModelWithCustomKey();
+
+        // Act
+        await model.save();
+
+        // Assert
+        expect(model.customKey).toBeTruthy();
+        expect(model.customKey).toEqual(model.id);
     });
 
     it('implements belongs to many relationship', async () => {
@@ -1460,6 +1736,39 @@ describe('SolidModel', () => {
             'knows': friendUrls.map((url) => ({ '@id': url })),
             'metadata': {
                 '@id': person.url + '#metadata',
+                '@type': 'crdt:Metadata',
+                'crdt:createdAt': {
+                    '@type': 'http://www.w3.org/2001/XMLSchema#dateTime',
+                    '@value': '1997-07-21T23:42:00.000Z',
+                },
+            },
+        });
+    });
+
+    it('serializes to JSON-LD with custom primary key', () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl();
+        const model = new ModelWithCustomKey({
+            customKey: fakeDocumentUrl({ containerUrl }),
+            age: 42,
+            createdAt: new Date('1997-07-21T23:42:00Z'),
+        });
+
+        // Act
+        const jsonld = model.toJsonLD();
+
+        // Assert
+        expect(jsonld).toEqual({
+            '@context': {
+                '@vocab': 'http://xmlns.com/foaf/0.1/',
+                'crdt': 'https://vocab.noeldemartin.com/crdt/',
+                'metadata': { '@reverse': 'crdt:resource' },
+            },
+            '@id': model.customKey,
+            '@type': 'ModelWithCustomKey',
+            'age': 42,
+            'metadata': {
+                '@id': model.customKey + '#metadata',
                 '@type': 'crdt:Metadata',
                 'crdt:createdAt': {
                     '@type': 'http://www.w3.org/2001/XMLSchema#dateTime',
