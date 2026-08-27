@@ -357,10 +357,13 @@ export class SolidModel extends SolidModelBase {
 
         const { documentPermissions, stopTracking } = this.instance().trackPublicPermissions();
         const document = await this.requireEngine().readOne(containerUrl, documentUrl);
-        const resource = await RDFDocument.resourceFromJsonLDGraph(document as JsonLDGraph, resourceUrl);
 
-        if (rdfsClasses.length > 0 && !rdfsClasses.some((type) => resource.isType(type))) {
-            return fail(ResourceNotFound, resourceUrl, documentUrl);
+        if (rdfsClasses.length > 0 || resourceUrl !== documentUrl) {
+            const resource = await RDFDocument.resourceFromJsonLDGraph(document as JsonLDGraph, resourceUrl);
+
+            if (rdfsClasses.length > 0 && !rdfsClasses.some((type) => resource.isType(type))) {
+                return fail(ResourceNotFound, resourceUrl, documentUrl);
+            }
         }
 
         const model = await this.instance().createFromEngineDocument(documentUrl, document, resourceUrl);
@@ -1234,7 +1237,16 @@ export class SolidModel extends SolidModelBase {
 
     protected async createFromEngineDocument(id: Key, document: EngineDocument, resourceId?: string): Promise<this> {
         const createModel = async () => {
-            const attributes = await this.parseEngineDocumentAttributes(id, document, resourceId);
+            let attributes: Attributes = {};
+            try {
+                attributes = await this.parseEngineDocumentAttributes(id, document, resourceId);
+            } catch (e) {
+                if (!(e instanceof ResourceNotFound) 
+                    || id !== resourceId 
+                    || this.static('rdfsClasses').length > 0 || this.static('rdfsClassesAliases').length > 0) {
+                    throw e;
+                }
+            }
 
             attributes[this.static('primaryKey')] = new ModelKey(resourceId || id);
 
@@ -1250,7 +1262,6 @@ export class SolidModel extends SolidModelBase {
         };
 
         const documentUrl = toString(id);
-        const resource = await RDFDocument.resourceFromJsonLDGraph(document as JsonLDGraph, resourceId || documentUrl);
         const model = await createModel();
 
         await model.loadDocumentModels(documentUrl, document);
@@ -1259,12 +1270,21 @@ export class SolidModel extends SolidModelBase {
             throw new IncompleteDocument(documentUrl);
         }
 
-        return tap(model, (m) => {
-            m._sourceDocumentUrl = urlClean(documentUrl, { fragment: false });
-            m._usesRdfAliases = this.static('rdfsClassesAliases').some(
+        model._sourceDocumentUrl = urlClean(documentUrl, { fragment: false });
+
+        if (this.static('rdfsClassesAliases').length > 0 || resourceId !== documentUrl) {
+            const resource = await RDFDocument.resourceFromJsonLDGraph(
+                document as JsonLDGraph,
+                resourceId || documentUrl,
+            );
+            model._usesRdfAliases = this.static('rdfsClassesAliases').some(
                 (types) => !types.some((type) => !resource.isType(type)),
             );
-        });
+        } else {
+            model._usesRdfAliases = false;
+        }
+
+        return model;
     }
 
     protected async createManyFromEngineDocuments(documents: Record<string, EngineDocument>): Promise<this[]> {

@@ -639,6 +639,26 @@ describe('SolidModel', () => {
         expect(model?.age).toEqual(35);
     });
 
+    it('finds empty model without class if resource id points to an empty document', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl();
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+
+        FakeSolidEngine.database[containerUrl] = {
+            [documentUrl]: {
+                '@graph': [],
+            },
+        };
+
+        // Act
+        const model = await ModelWithoutType.at(containerUrl).find(documentUrl);
+
+        // Assert
+        expect(model).not.toBeNull();
+        expect(model?.url).toBe(documentUrl);
+        expect(model?.age).toBeUndefined();
+    });
+
     it('converts filters to JSON-LD', async () => {
         // Arrange
         const peopleUrl = 'https://example.com/people/';
