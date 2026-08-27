@@ -58,8 +58,44 @@ describe('SolidACLResource', () => {
         expect(aclResource.containedAuthorizations[0]?.accessTo[0]).toBe(documentUrl);
         expect(aclResource.containedAuthorizations[1]?.accessTo.length).toBe(1);
         expect(aclResource.containedAuthorizations[1]?.accessTo[0]).toBe(documentUrl);
+        expect(aclResource.containedAuthorizations[0]?.default.length).toBe(0);
+        expect(aclResource.containedAuthorizations[1]?.default.length).toBe(0);
         expect(urlParse(aclResource.containedAuthorizations[0]?.url ?? '')?.fragment).toBe('AA');
         expect(urlParse(aclResource.containedAuthorizations[1]?.url ?? '')?.fragment).toBe('CC');
+    });
+
+    it('updates default authorization for container resources', async () => {
+        setEngine(new SolidEngine(FakeServer.fetch));
+
+        const rootContainerUrl = fakeContainerUrl();
+        const rootContainerAclUrl = `${rootContainerUrl}.acl`;
+
+        const containerUrl = fakeContainerUrl({ baseUrl: rootContainerUrl });
+        const containerAclUrl = `${containerUrl}.acl`;
+
+        FakeServer.respondWith(containerUrl, getHeadAclResponseHandler(containerAclUrl));
+
+        FakeServer.respondWith(rootContainerUrl, getHeadAclResponseHandler(rootContainerAclUrl));
+
+        FakeServer.respond(containerAclUrl, new Response(null, { status: 404 }));
+
+        FakeServer.respond(rootContainerAclUrl, new Response(`
+            @prefix acl: <http://www.w3.org/ns/auth/acl#> .
+
+            <#AA> a acl:Authorization ;
+                acl:accessTo <./> ;
+                acl:default <./> .
+        `));
+
+        const aclResource = await SolidACLResource.findForDocumentOrFail(containerUrl);
+
+        expect(aclResource).not.toBeNull();
+        expect(aclResource.url).toBe(containerAclUrl);
+        expect(aclResource.containedAuthorizations.length).toBe(1);
+        expect(aclResource.containedAuthorizations[0]?.accessTo.length).toBe(1);
+        expect(aclResource.containedAuthorizations[0]?.accessTo[0]).toBe(containerUrl);
+        expect(aclResource.containedAuthorizations[0]?.default.length).toBe(1);
+        expect(aclResource.containedAuthorizations[0]?.default[0]).toBe(containerUrl);
     });
 
 });

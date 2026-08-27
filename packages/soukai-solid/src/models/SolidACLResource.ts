@@ -45,6 +45,13 @@ export default class SolidACLResource extends Model {
 
                 const authorizationCopy = new SolidACLAuthorization(authorizationAttributes);
                 authorizationCopy.accessTo = [documentUrl];
+
+                if (documentUrl.endsWith('/')) {
+                    authorizationCopy.default = [documentUrl];
+                }
+                else {
+                    authorizationCopy.default = [];
+                }
                 
                 const resourceHash = urlParse(authorization.url)?.fragment;
                 if (resourceHash) {
