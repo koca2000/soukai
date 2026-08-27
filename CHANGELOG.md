@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [v0.8.0](https://github.com/koca2000/soukai/releases/tag/v0.8.0) - 2026-08-27
+
+### Added
+
+- `SolidMultiDocumentAggregate` for multi-document resources. [#1](https://github.com/koca2000/soukai/pull/1)
+- Model can have `rdfsClass: null`. [#1](https://github.com/koca2000/soukai/pull/1)
+- It is possible to use `find` to load an entity in a document that is not matching its URL. [#1](https://github.com/koca2000/soukai/pull/1)
+- `DocumentContainManyRelation` supports Add/Change/Remove operations [#3](https://github.com/koca2000/soukai/pull/3)
+- `SolidACLResource` for WAC's ACL authorization management [#3](https://github.com/koca2000/soukai/pull/3)
+
+### Changed
+
+- Package names use prefix `@koca2000/`
+- `findOrFail` method of `Model` throws a specific error instead of a generic `SoukaiError`[#1](https://github.com/koca2000/soukai/pull/1)
+
+### Fixed
+
+- `url` is no longer hard coded as primary key field in internal logic [#1](https://github.com/koca2000/soukai/pull/1)
+- Support for containers with Inrupt PodSpaces server. [#2](https://github.com/koca2000/soukai/pull/2)
+
+### Removed
+
+- Package `soukai-bis`.
+
 ## [v0.7.1](https://github.com/NoelDeMartin/soukai/releases/tag/v0.7.1) - 2025-12-14
 
 ### Fixed
