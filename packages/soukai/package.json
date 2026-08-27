@@ -1,6 +1,6 @@
 {
-    "name": "soukai",
-    "version": "0.7.1",
+    "name": "@koca2000/soukai",
+    "version": "0.8.0",
     "type": "module",
     "sideEffects": false,
     "exports": {
@@ -19,7 +19,7 @@
     ],
     "license": "MIT",
     "author": "Noel De Martin",
-    "repository": "github:NoelDeMartin/soukai",
+    "repository": "github:koca2000/soukai",
     "scripts": {
         "build": "vite build",
         "lint": "noeldemartin-lint src",
