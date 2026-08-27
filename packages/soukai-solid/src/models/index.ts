@@ -9,6 +9,7 @@ import SolidDocument from './SolidDocument';
 import SolidResource from './SolidResource';
 import SolidTypeIndex from './SolidTypeIndex';
 import SolidTypeRegistration from './SolidTypeRegistration';
+import SolidACLResource from './SolidACLResource';
 
 export * from './guards';
 export * from './helpers';
@@ -56,6 +57,7 @@ export type {
 
 const _coreModels = {
     ...historyModels,
+    SolidACLResource,
     SolidACLAuthorization,
     SolidContainer,
     SolidDocument,
