@@ -1,17 +1,25 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { FakeServer, fakeDocumentUrl } from '@noeldemartin/testing';
+import { assert, beforeEach, describe, expect, it } from 'vitest';
+import { FakeServer, fakeContainerUrl, fakeDocumentUrl, fakeResourceUrl } from '@noeldemartin/testing';
 import { faker } from '@noeldemartin/faker';
-import { setEngine } from 'soukai';
+import { type EngineDocument, setEngine } from 'soukai';
 
 import SolidTypeIndex from 'soukai-solid/models/SolidTypeIndex';
 import { SolidEngine } from 'soukai-solid/engines/SolidEngine';
+import FakeSolidEngine from 'soukai-solid/testing/fakes/FakeSolidEngine';
+import SolidACLResource from '../SolidACLResource';
+import SolidACLAuthorization from '../SolidACLAuthorization';
 
 describe('DocumentContainsManyRelation', () => {
 
-    beforeEach(() => setEngine(new SolidEngine(FakeServer.fetch)));
+    beforeEach(() => {
+        FakeSolidEngine.reset();
+        FakeSolidEngine.use();
+    });
 
     it('loads related documents', async () => {
         // Arrange
+        setEngine(new SolidEngine(FakeServer.fetch));
+
         const podUrl = faker.internet.url();
         const typeIndexUrl = fakeDocumentUrl({ containerUrl: podUrl + '/' });
 
@@ -78,9 +86,152 @@ describe('DocumentContainsManyRelation', () => {
         expect(registration('ramen')?.instanceContainer).toBeUndefined();
     });
 
-    it.todo('creates new documents with related documents');
-    it.todo('adds models in existing documents');
-    it.todo('updates models in existing documents');
-    it.todo('removes models in existing documents');
+    it('creates new documents with related documents', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl();
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+
+        const document = new SolidACLResource({ url: documentUrl });
+
+        const authorization1 = new SolidACLAuthorization();
+        document.relatedContainedAuthorizations.attach(authorization1);
+
+        // Act
+
+        await document.save();
+
+        // Assert
+
+        expect(FakeSolidEngine.createSpy).toBeCalledWith(containerUrl, {
+            '@graph': [
+                {
+                    '@context': {
+                        '@vocab': 'http://www.w3.org/ns/solid/terms#',
+                    },
+                    '@id': documentUrl,
+                },
+                authorization1.toJsonLD(),
+            ],
+        }, documentUrl);
+        expect(authorization1.url).toSatisfy(u => u.startsWith(documentUrl));
+    });
+
+    it('adds models in existing documents', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl();
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const authorizationUrl = fakeResourceUrl({ documentUrl });
+
+        const agentUrl = fakeResourceUrl();
+        const agentUrl2 = fakeResourceUrl();
+
+        FakeSolidEngine.database[containerUrl] = {
+            [documentUrl]: {
+                '@graph': [
+                    new SolidACLAuthorization({ url: authorizationUrl, agent: agentUrl }).toJsonLD() as EngineDocument,
+                ],
+            },
+        };
+
+        const document = await SolidACLResource.find(documentUrl);
+
+        const newAuthorization = new SolidACLAuthorization({ agent: agentUrl2 });
+        document?.relatedContainedAuthorizations.attach(newAuthorization);
+
+        // Act
+
+        await document?.save();
+
+        // Assert
+
+        expect(FakeSolidEngine.updateSpy).toBeCalledWith(containerUrl, documentUrl, {
+            '@graph': {
+                $push: newAuthorization.toJsonLD(),
+            },
+        });
+    });
+
+    it('updates models in existing documents', async () => {
+        // Arrange
+
+        const containerUrl = fakeContainerUrl();
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const authorizationUrl = fakeResourceUrl({ documentUrl });
+
+        const agentUrl = fakeResourceUrl();
+        const agentUrl2 = fakeResourceUrl();
+
+        FakeSolidEngine.database[containerUrl] = {
+            [documentUrl]: {
+                '@graph': [
+                    new SolidACLAuthorization({ url: authorizationUrl, agent: agentUrl }).toJsonLD() as EngineDocument,
+                ],
+            },
+        };
+
+        const document = await SolidACLResource.find(documentUrl);
+        assert(document !== null);
+        const authorization = document.containedAuthorizations[0];
+        assert(authorization !== undefined);
+
+        // Act
+        
+        authorization.agents = [agentUrl2];
+        await document.save();
+
+        // Assert
+
+        expect(FakeSolidEngine.updateSpy).toBeCalledWith(containerUrl, documentUrl, {
+            '@graph': {
+                $updateItems: {
+                    $where: { '@id': authorization.url },
+                    $update: { ['http://www.w3.org/ns/auth/acl#agent']: { '@id': agentUrl2 } },
+                },
+            },
+        });
+    });
+
+    it('removes models in existing documents', async () => {
+        // Arrange
+
+        const containerUrl = fakeContainerUrl();
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const authorizationUrl = fakeResourceUrl({ documentUrl });
+        const authorizationUrl2 = fakeResourceUrl({ documentUrl });
+
+        const agentUrl = fakeResourceUrl();
+        const agentUrl2 = fakeResourceUrl();
+
+        FakeSolidEngine.database[containerUrl] = {
+            [documentUrl]: {
+                '@graph': [
+                    new SolidACLAuthorization({ url: authorizationUrl, agent: agentUrl }).toJsonLD() as EngineDocument,
+                    new SolidACLAuthorization({ url: authorizationUrl2, agent: agentUrl2 })
+                        .toJsonLD() as EngineDocument,
+                ],
+            },
+        };
+
+        const document = await SolidACLResource.find(documentUrl);
+        assert(document !== null);
+        const authorization = document.containedAuthorizations[0];
+        assert(authorization !== undefined);
+
+        // Act
+
+        document.relatedContainedAuthorizations.detach(authorization);
+        await document.save();
+
+        // Assert
+
+        expect(FakeSolidEngine.updateSpy).toBeCalledWith(containerUrl, documentUrl, {
+            '@graph': {
+                $updateItems: {
+                    $where: { '@id': authorization.url },
+                    $unset: true,
+                },
+            },
+        });
+    });
 
 });
