@@ -4,12 +4,12 @@ import type { Model } from 'soukai';
 import { historyModels } from './history/index';
 
 import SolidACLAuthorization from './SolidACLAuthorization';
+import SolidACLResource from './SolidACLResource';
 import SolidContainer from './SolidContainer';
 import SolidDocument from './SolidDocument';
 import SolidResource from './SolidResource';
 import SolidTypeIndex from './SolidTypeIndex';
 import SolidTypeRegistration from './SolidTypeRegistration';
-import SolidACLResource from './SolidACLResource';
 
 export * from './guards';
 export * from './helpers';
@@ -22,9 +22,18 @@ export * from './SolidModel';
 export * from './SolidContainer.schema';
 export * from './SolidMultiDocumentAggregate';
 
-export { SolidACLAuthorization, SolidContainer, SolidDocument, SolidResource, SolidTypeIndex, SolidTypeRegistration };
+export {
+    SolidACLAuthorization,
+    SolidACLResource,
+    SolidContainer,
+    SolidDocument,
+    SolidResource,
+    SolidTypeIndex,
+    SolidTypeRegistration,
+};
 
 export { default as SolidACLAuthorizationSchema } from './SolidACLAuthorization.schema';
+export { default as SolidACLResourceSchema } from './SolidACLResource.schema';
 export { default as SolidContainerSchema } from './SolidContainer.schema';
 export { default as SolidDocumentSchema } from './SolidDocument.schema';
 export { default as SolidResourceSchema } from './SolidResource.schema';
