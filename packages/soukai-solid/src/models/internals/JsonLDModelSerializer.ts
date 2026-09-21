@@ -85,7 +85,7 @@ class JsonLDContext {
             this.terms.push({
                 name,
                 value,
-                compactingPrefix: `${name}`,
+                compactingPrefix: `${name}:`,
                 used: rdfsProperties.some((rdfProperty) => rdfProperty.startsWith(value)),
             });
         }
