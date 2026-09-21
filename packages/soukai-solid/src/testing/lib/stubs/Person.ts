@@ -10,6 +10,7 @@ import Movie from 'soukai-solid/testing/lib/stubs/Movie';
 
 import Model from './Person.schema';
 import Post from './Post';
+import VCardEmail from './VCardEmail';
 
 export default class Person extends Model {
 
@@ -20,6 +21,8 @@ export default class Person extends Model {
     declare public group: Group | undefined;
     declare public posts?: Post[];
     declare public relatedPosts: SolidHasManyRelation<Person, Post, typeof Post>;
+    declare public emails: VCardEmail[] | undefined;
+    declare public relatedEmails: SolidBelongsToManyRelation<Person, VCardEmail, typeof VCardEmail>;
 
     public friendsRelationship(): Relation {
         return this.belongsToMany(Person, 'friendUrls');
@@ -35,6 +38,10 @@ export default class Person extends Model {
 
     public postsRelationship(): Relation {
         return this.hasMany(Post, 'authorUrl');
+    }
+
+    public emailsRelationship(): Relation {
+        return this.belongsToMany(VCardEmail, 'emailUrls').usingSameDocument();
     }
 
     protected newUrl(documentUrl?: string, resourceHash?: string): string {

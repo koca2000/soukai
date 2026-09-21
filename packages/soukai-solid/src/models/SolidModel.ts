@@ -1143,17 +1143,38 @@ export class SolidModel extends SolidModelBase {
     public getRemovedDocumentModels(): SolidModel[] {
         const removedModels = new Set<SolidModel>();
 
-        for (const relation of Object.values(this._relations)) {
-            if (
-                !relation.enabled ||
-                !relation.loaded ||
-                !isSolidDocumentRelation(relation) ||
-                !isSolidMultiModelDocumentRelation(relation)
-            ) {
-                continue;
-            }
+        const modelsQueue: SolidModel[] = [this];
+        const foundModels = new Set<SolidModel>(modelsQueue);
 
-            relation.__removedDocumentModels.forEach((model) => removedModels.add(model));
+        let currentModel;
+        while ((currentModel = modelsQueue.pop()) !== undefined) {
+            for (const relation of Object.values(currentModel._relations)) {
+                if (
+                    !relation.enabled ||
+                    !relation.loaded ||
+                    !isSolidDocumentRelation(relation)
+                ) {
+                    continue;
+                }
+
+                if (isSolidMultiModelDocumentRelation(relation)) {
+                    relation.__removedDocumentModels.forEach((model) => removedModels.add(model));
+
+                    relation.__modelsInSameDocument
+                        ?.filter(model => !foundModels.has(model))
+                        .forEach(model => {
+                            foundModels.add(model);
+                            modelsQueue.push(model);
+                        });
+                }
+                else if (isSolidSingleModelDocumentRelation(relation)) {
+                    const model = relation.__modelInSameDocument;
+                    if (model && !foundModels.has(model)) {
+                        foundModels.add(model);
+                        modelsQueue.push(model);
+                    }
+                }
+            }
         }
 
         return Array.from(removedModels);

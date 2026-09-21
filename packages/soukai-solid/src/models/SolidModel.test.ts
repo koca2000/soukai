@@ -41,6 +41,7 @@ import Movie from 'soukai-solid/testing/lib/stubs/Movie';
 import MoviesCollection from 'soukai-solid/testing/lib/stubs/MoviesCollection';
 import Person from 'soukai-solid/testing/lib/stubs/Person';
 import PersonSchema from 'soukai-solid/testing/lib/stubs/Person.schema';
+import VCardEmail from 'soukai-solid/testing/lib/stubs/VCardEmail';
 import WatchAction from 'soukai-solid/testing/lib/stubs/WatchAction';
 import FakeSolidEngine from 'soukai-solid/testing/fakes/FakeSolidEngine';
 import { assertInstanceOf, solidModelWithHistory, solidModelWithTimestamps } from 'soukai-solid/testing/utils';
@@ -52,6 +53,7 @@ import {
 } from 'soukai-solid/testing/lib/stubs/helpers';
 
 import { SolidModel } from './SolidModel';
+import { Metadata } from './history';
 
 describe('SolidModel', () => {
 
@@ -66,6 +68,7 @@ describe('SolidModel', () => {
             Movie,
             MovieWithHistory,
             MoviesCollection,
+            VCardEmail,
             Person,
             PersonWithHistory,
             WatchAction,
@@ -1547,6 +1550,61 @@ describe('SolidModel', () => {
                     $where: { '@id': { $in: [thirdActionUrl, fourthActionUrl] } },
                     $unset: true,
                 },
+            },
+        });
+    });
+
+    it('deletes removed entities in deeply nested relations in same document', async () => {
+        // Arrange
+        const containerUrl = fakeContainerUrl();
+        const documentUrl = fakeDocumentUrl({ containerUrl });
+        const movieUrl = fakeResourceUrl({ documentUrl, hash: uuid() });
+        const personUrl = fakeResourceUrl({ documentUrl, hash: uuid() });
+        const emailUrl1 = fakeResourceUrl({ documentUrl, hash: uuid() });
+        const emailUrl2 = fakeResourceUrl({ documentUrl, hash: uuid() });
+
+        FakeSolidEngine.database[containerUrl] = {
+            [documentUrl]: {
+                '@graph': [
+                    new Movie({ url: movieUrl, title: 'Movie A' }).toJsonLD(),
+                    new Person({ url: personUrl, name: 'Bob', directed: movieUrl, emailUrls: [emailUrl1, emailUrl2] }).toJsonLD(),
+                    new Metadata({ url: `${personUrl}-metadata`, resourceUrl: personUrl, createdAt: new Date() }).toJsonLD(),
+                    new VCardEmail({ url: emailUrl1, value: 'a@b.c' }).toJsonLD(),
+                    new VCardEmail({ url: emailUrl2, value: 'x@y.z' }).toJsonLD(),
+                ],
+            } as EngineDocument,
+        };
+
+        const movie = await Movie.find(movieUrl);
+
+        // Act
+        movie?.director?.relatedEmails.detach(emailUrl2);
+
+        await movie?.save();
+
+        // Assert
+        expect(FakeSolidEngine.update).toHaveBeenCalledWith(containerUrl, documentUrl, {
+            '@graph': {
+                $apply: [
+                    {
+                        $updateItems: {
+                            $update: {
+                                'http://www.w3.org/2006/vcard/ns#hasEmail': {
+                                    '@id': emailUrl1,
+                                },
+                            },
+                            $where: {
+                                '@id': personUrl,
+                            },
+                        },
+                    },
+                    {
+                        $updateItems: {
+                            $where: { '@id': emailUrl2 },
+                            $unset: true,
+                        },
+                    },
+                ],
             },
         });
     });

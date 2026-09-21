@@ -31,5 +31,10 @@ export default defineSolidModelSchema({
             rdfProperty: 'knows',
             items: FieldType.Key,
         },
+        emailUrls: {
+            type: FieldType.Array,
+            rdfProperty: 'vcard:hasEmail',
+            items: FieldType.Key,
+        },
     },
 });
