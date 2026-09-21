@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 
 - Recursive detection of removed documents in relations.
+- Missing colon after prefix of non-predefined context of related entity in JSON-LD serialization.
 
 ## [v0.8.1](https://github.com/koca2000/soukai/releases/tag/v0.8.1) - 2026-08-28
 

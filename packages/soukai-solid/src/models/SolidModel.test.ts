@@ -41,6 +41,7 @@ import Movie from 'soukai-solid/testing/lib/stubs/Movie';
 import MoviesCollection from 'soukai-solid/testing/lib/stubs/MoviesCollection';
 import Person from 'soukai-solid/testing/lib/stubs/Person';
 import PersonSchema from 'soukai-solid/testing/lib/stubs/Person.schema';
+import Pet from 'soukai-solid/testing/lib/stubs/Pet';
 import VCardEmail from 'soukai-solid/testing/lib/stubs/VCardEmail';
 import WatchAction from 'soukai-solid/testing/lib/stubs/WatchAction';
 import FakeSolidEngine from 'soukai-solid/testing/fakes/FakeSolidEngine';
@@ -69,6 +70,7 @@ describe('SolidModel', () => {
             MovieWithHistory,
             MoviesCollection,
             VCardEmail,
+            Pet,
             Person,
             PersonWithHistory,
             WatchAction,
@@ -1961,6 +1963,53 @@ describe('SolidModel', () => {
                     '@type': 'http://www.w3.org/2001/XMLSchema#dateTime',
                     '@value': mugiwara.updatedAt.toISOString(),
                 },
+            },
+        });
+    });
+
+
+    it('serializes to JSON-LD with context from related entity', () => {
+        // Arrange
+        const personUrl = fakeResourceUrl({ hash: uuid() });
+        const petUrl = fakeResourceUrl({ hash: uuid() });
+        
+        const person = new Person({ url: personUrl, name: 'A' });
+        const pet = new Pet({ url: petUrl, name: 'B', kind: 'https://animalkinds.com/#Dog' });
+        person.relatedPets.attach(pet);
+
+        // Act
+        const jsonLd = person.toJsonLD();
+
+        //Assert
+        expect(jsonLd).toEqual({
+            '@context': {
+                '@vocab': 'http://xmlns.com/foaf/0.1/',
+                'crdt': 'https://vocab.noeldemartin.com/crdt/',
+                'default': 'https://not-predefined-context.com/#',
+                'metadata': {
+                    '@reverse': 'crdt:resource',
+                },
+                'pets': {
+                    '@reverse': 'default:owner',
+                },
+                'vcard': 'http://www.w3.org/2006/vcard/ns#',
+            },
+            '@id': personUrl,
+            '@type': 'Person',
+            'name': 'A',
+            'pets': [
+                {
+                    '@id': petUrl,
+                    '@type': 'default:Pet',
+                    'default:kind': {
+                        '@id': 'https://animalkinds.com/#Dog',
+                    },
+                    'name': 'B',
+                },
+            ],
+            'metadata': {
+                '@id': `${personUrl}-metadata`,
+                '@type': 'crdt:Metadata',
             },
         });
     });
