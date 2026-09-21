@@ -6,10 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [v0.8.2](https://github.com/koca2000/soukai/releases/tag/v0.8.2) - 2026-09-21
+
 ### Fixed
 
-- Recursive detection of removed documents in relations.
-- Missing colon after prefix of non-predefined context of related entity in JSON-LD serialization.
+- Recursive detection of removed documents in relations. [#4](https://github.com/koca2000/soukai/pull/4)
+- Missing colon after prefix of non-predefined context of related entity in JSON-LD serialization. [#5](https://github.com/koca2000/soukai/pull/5)
 
 ## [v0.8.1](https://github.com/koca2000/soukai/releases/tag/v0.8.1) - 2026-08-28
 

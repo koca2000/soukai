@@ -1,6 +1,6 @@
 {
     "name": "@koca2000/soukai",
-    "version": "0.8.1",
+    "version": "0.8.2",
     "type": "module",
     "sideEffects": false,
     "exports": {
