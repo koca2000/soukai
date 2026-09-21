@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Incorrect prefix definition in JSON-LD serialization when multiple related models use the same prefix with different ontologies.
+
 ## [v0.8.2](https://github.com/koca2000/soukai/releases/tag/v0.8.2) - 2026-09-21
 
 ### Fixed
